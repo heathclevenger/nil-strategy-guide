@@ -353,17 +353,17 @@ function calculateScenario(type, gross, assumptions, yearIndex = 0) {
       const cashRetained = gross - expense - adminCost - health - retirement - totalTax;
       const personalSpending = Math.min(assumptions.annualSpending, Math.max(0, cashRetained));
       const retirementFundingLimit = assumptions.nearTermCashNeed / Math.max(1, assumptions.yearCount);
-      const bigPurchaseReserveTarget = assumptions.bigPurchases
+      const bigPurchaseCashNeed = assumptions.bigPurchases
         .filter((purchase) => purchase.year === yearIndex + 1)
         .reduce((sum, purchase) => sum + purchase.amount, 0);
-      const bigPurchaseReserveFunded = Math.min(
-        bigPurchaseReserveTarget,
+      const bigPurchaseCashAvailable = Math.min(
+        bigPurchaseCashNeed,
         Math.max(0, cashRetained - assumptions.annualSpending),
       );
-      const retirementFundingCushion = cashRetained - assumptions.annualSpending - bigPurchaseReserveTarget - retirementFundingLimit;
-      const cashAfterSpending = cashRetained - assumptions.annualSpending - bigPurchaseReserveTarget;
+      const retirementFundingCushion = cashRetained - assumptions.annualSpending - bigPurchaseCashNeed - retirementFundingLimit;
+      const cashAfterSpending = cashRetained - assumptions.annualSpending - bigPurchaseCashNeed;
       const wealthRetained = cashRetained + retirement;
-      const wealthAfterSpending = wealthRetained - assumptions.annualSpending;
+      const wealthAfterSpending = wealthRetained - assumptions.annualSpending - bigPurchaseCashNeed;
 
       return {
         type,
@@ -383,8 +383,8 @@ function calculateScenario(type, gross, assumptions, yearIndex = 0) {
         health,
         personalSpending,
         retirementFundingLimit,
-        bigPurchaseReserveTarget,
-        bigPurchaseReserveFunded,
+        bigPurchaseCashNeed,
+        bigPurchaseCashAvailable,
         retirementFundingCushion,
         cashAfterSpending,
         wealthAfterSpending,
@@ -561,21 +561,23 @@ function recommendStructure(assumptions, scenarios, scenarioTotals) {
   const sCorp = chooseBest(["sCorp", "sCorpRetirement"], scenarioTotals);
   const all = chooseBest(Object.keys(scenarioTotals), scenarioTotals);
   const sCorpNetBenefit = sCorp[1].wealthAfterSpending - simple[1].wealthAfterSpending;
-  const hasLiquidityGap = scenarios[sCorp[0]].some((row) => row.cashAfterSpending < 0);
+  const hasLiquidityGap = scenarios[sCorp[0]].some(
+    (row) => row.cashAfterSpending < 0 || (row.retirement > 0 && row.retirementFundingCushion < 0),
+  );
   const clearsFees = sCorpNetBenefit > 0;
   const recommended = clearsFees && !hasLiquidityGap ? sCorp : simple;
 
-  let reason = "The recommendation is based on after-tax wealth after planned spending and modeled structure fees, not tax savings alone.";
+  let reason = "The recommendation is based on after-tax wealth after planned spending and purchases, retirement funding limits, and modeled structure fees, not tax savings alone.";
   if (recommended[0].startsWith("sCorp")) {
-    reason = `The S-corp path produces ${money(sCorpNetBenefit)} more after-spending wealth after modeled setup/admin costs.`;
+    reason = `The S-corp path produces ${money(sCorpNetBenefit)} more after-spending/purchase wealth after modeled setup/admin costs.`;
   } else if (hasLiquidityGap && sCorpNetBenefit > 0) {
-    reason = "The S-corp/retirement path shows tax value, but the spending need creates a cash shortfall in at least one modeled year.";
+    reason = "The S-corp/retirement path shows tax value, but the spending or retirement-funding limit creates a shortfall in at least one modeled year.";
   } else if (sCorpNetBenefit > 0) {
-    reason = `The S-corp path improves after-spending wealth by ${money(sCorpNetBenefit)}, but the cash/liquidity screen prevents recommending it.`;
+    reason = `The S-corp path improves after-spending/purchase wealth by ${money(sCorpNetBenefit)}, but the retirement funding and cash screen prevents recommending it.`;
   } else if (recommended[0].startsWith("llc")) {
     reason = "The LLC is the best simpler structure after entity cost, spending needs, and retirement feasibility.";
   } else {
-    reason = "The LLC keeps more after-spending wealth once entity cost, payroll, retirement feasibility, and spending are included.";
+    reason = "The LLC keeps more after-spending/purchase wealth once entity cost, payroll, retirement feasibility, and spending are included.";
   }
 
   return {
@@ -688,7 +690,7 @@ function renderMetrics(model) {
     ["Total NIL modeled", money(llc.gross)],
     ["Recommended tax burden", money(best.totalTax)],
     ["Effective tax rate", pct(best.totalTax / Math.max(1, best.gross))],
-    ["After-spending wealth", money(best.wealthAfterSpending)],
+    ["After-spending/purchase wealth", money(best.wealthAfterSpending)],
     ["S-corp payroll taxes", money(sCorp.payroll)],
     ["LLC-only entity cost", money(llc.adminCost)],
     ["LLC self-employment tax", money(llc.seTax)],
@@ -705,7 +707,7 @@ function renderMetrics(model) {
     ["LLC plan selected", planMix(model.scenarios.llcRetirement)],
     ["S-Corp plan selected", planMix(model.scenarios.sCorpRetirement)],
     ["Retirement tax impact", money(model.scenarioTotals.sCorp.totalTax - model.scenarioTotals.sCorpRetirement.totalTax)],
-    ["Wealth after spending", money(model.scenarioTotals.sCorpRetirement.wealthAfterSpending)],
+    ["Wealth after spending/purchases", money(model.scenarioTotals.sCorpRetirement.wealthAfterSpending)],
     ["Cash after spending/purchases", money(model.scenarioTotals.sCorpRetirement.cashAfterSpending)],
     ["Total tax with retirement", money(model.scenarioTotals.sCorpRetirement.totalTax)],
   ];
@@ -733,11 +735,11 @@ function renderPlayerSummary(model) {
   const selectedRetirement = selectedIsS ? sCorpRetirement : llcRetirement;
   const selectedRetirementLift = selectedRetirement.wealthAfterSpending - selectedBase.wealthAfterSpending;
   const entityBullet = selectedIsS
-    ? `S-Corp is recommended because it produces more after-spending wealth than LLC after payroll, admin/setup costs, and the optimized salary assumption.`
-    : `LLC is recommended because S-Corp does not produce enough additional after-spending wealth after payroll, admin/setup costs, salary requirements, and cash needs.`;
+    ? `S-Corp is recommended because it produces more after-spending/purchase wealth than LLC after payroll, admin/setup costs, and the optimized salary assumption.`
+    : `LLC is recommended because S-Corp does not produce enough additional after-spending/purchase wealth after payroll, admin/setup costs, salary requirements, and cash needs.`;
   const retirementBullet = selectedHasRetirement
     ? `The recommendation includes ${planMix(model.scenarios[rec.key])}, adding ${money(Math.max(0, selectedRetirementLift))} of modeled wealth versus the same entity without retirement.`
-    : `The recommendation does not include a retirement account because the current inputs favor cash/liquidity over locking funds into retirement.`;
+    : `The recommendation does not include a retirement account because the current inputs limit how much should be locked into retirement.`;
   const doingNothingBullet =
     recommendationLift >= 0
       ? `The recommended strategy improves projected wealth by ${money(recommendationLift)} and changes total tax by ${money(taxDifference)} versus taking NIL income with no structure or retirement strategy.`
@@ -752,9 +754,9 @@ function renderPlayerSummary(model) {
   const actionItems = [
     selectedIsS ? "Form LLC and elect S-Corp tax treatment" : "Use LLC tax treatment",
     selectedHasRetirement ? `Use ${planMix(model.scenarios[rec.key])}` : "Skip retirement account for now",
-    `Reserve ${money(model.assumptions.annualSpending)} per year for spending`,
+    `Set aside ${money(model.assumptions.annualSpending)} per year for spending`,
     model.assumptions.nearTermCashNeed > 0 ? `${money(model.assumptions.nearTermCashNeed)} limits retirement funding` : "No 10-year retirement funding limit modeled",
-    model.assumptions.bigPurchaseAmount > 0 ? `Keep ${money(model.assumptions.bigPurchaseAmount)} available for big purchases` : "No big purchase reserve modeled",
+    model.assumptions.bigPurchaseAmount > 0 ? `Keep ${money(model.assumptions.bigPurchaseAmount)} available for big purchases` : "No big purchase modeled",
   ];
 
   document.getElementById("playerSummary").innerHTML = `
@@ -773,7 +775,7 @@ function renderPlayerSummary(model) {
         <span>Total tax</span>
         <span>Change vs. without strategy</span>
         <span>Cash after spending/purchases</span>
-        <span>Wealth after spending</span>
+        <span>Wealth after spending/purchases</span>
       </div>
       <div class="compare-row">
         <strong>Without Strategy</strong>
@@ -781,7 +783,7 @@ function renderPlayerSummary(model) {
         <div><span>Total tax</span><strong>${money(noStructure.totalTax)}</strong></div>
         <div><span>Change vs. without strategy</span><strong>${money(0)}</strong></div>
         <div><span>Cash after spending/purchases</span><strong>${money(noStructure.cashAfterSpending)}</strong></div>
-        <div><span>Wealth after spending</span><strong>${money(noStructure.wealthAfterSpending)}</strong></div>
+        <div><span>Wealth after spending/purchases</span><strong>${money(noStructure.wealthAfterSpending)}</strong></div>
       </div>
       <div class="compare-row recommended-row">
         <strong>${best.label}</strong>
@@ -789,7 +791,7 @@ function renderPlayerSummary(model) {
         <div><span>Total tax</span><strong>${money(best.totalTax)}</strong></div>
         <div><span>Change vs. without strategy</span><strong>${money(recommendationLift)}</strong></div>
         <div><span>Cash after spending/purchases</span><strong>${money(best.cashAfterSpending)}</strong></div>
-        <div><span>Wealth after spending</span><strong>${money(best.wealthAfterSpending)}</strong></div>
+        <div><span>Wealth after spending/purchases</span><strong>${money(best.wealthAfterSpending)}</strong></div>
       </div>
     </div>
     <div class="player-explain">
@@ -834,7 +836,7 @@ function renderNarrative(model) {
         <span class="eyebrow">Recommended</span>
         <strong>${best.label}</strong>
       </div>
-      <div>${money(best.totalTax)} total tax; ${money(best.wealthAfterSpending)} wealth after spending</div>
+      <div>${money(best.totalTax)} total tax; ${money(best.wealthAfterSpending)} wealth after spending/purchases</div>
     </div>
     <ul>
       <li><strong>Recommendation rule:</strong> S-corp must beat LLC after modeled setup/admin costs, planned spending, and retirement feasibility.</li>
@@ -857,7 +859,7 @@ function renderNarrative(model) {
     </p>
     <ul>
       <li><strong>Auto retirement selection:</strong> the model compares SEP-IRA and Solo 401(k) each year and uses the stronger result for retained wealth.</li>
-      <li><strong>Cash-aware funding:</strong> if the planned annual spending from owner salary/cash would create a shortfall, the contribution is reduced before the recommendation is calculated.</li>
+      <li><strong>Cash-aware funding:</strong> contributions are reduced when annual spending, planned purchases, or the 10-year retirement funding limit make the maximum contribution unrealistic.</li>
       <li><strong>Compensation link:</strong> S-Corp retirement funding depends heavily on the W-2 salary tied to annual spending or entered as an override.</li>
       <li><strong>Implementation note:</strong> plan documents, employee status, deadlines, and advisor setup should be confirmed before relying on any retirement contribution estimate.</li>
     </ul>
@@ -916,10 +918,10 @@ function renderTables(model) {
     ["Effective rate", (row) => row.effectiveRate, "percent"],
     ["Cash retained", "cashRetained"],
     ["Personal spending from owner cash", (row) => -model.assumptions.annualSpending],
-    ["Big purchase reserve", (row) => -row.bigPurchaseReserveTarget],
+    ["Big purchase cash need", (row) => -row.bigPurchaseCashNeed],
     ["Cash after spending/purchases", "cashAfterSpending"],
     ["Wealth retained incl. retirement", "wealthRetained"],
-    ["Wealth after spending", "wealthAfterSpending"],
+    ["Wealth after spending/purchases", "wealthAfterSpending"],
   ];
 
   const retirementRows = [
@@ -942,10 +944,10 @@ function renderTables(model) {
     ["Effective rate", (row) => row.effectiveRate, "percent"],
     ["Cash retained", "cashRetained"],
     ["Personal spending from owner cash", (row) => -model.assumptions.annualSpending],
-    ["Big purchase reserve", (row) => -row.bigPurchaseReserveTarget],
+    ["Big purchase cash need", (row) => -row.bigPurchaseCashNeed],
     ["Cash after spending/purchases", "cashAfterSpending"],
     ["Wealth retained incl. retirement", "wealthRetained"],
-    ["Wealth after spending", "wealthAfterSpending"],
+    ["Wealth after spending/purchases", "wealthAfterSpending"],
   ];
 
   renderScenarioTable(model, "baseComparisonTable", ["llc", "sCorp"], baseRows);
@@ -1018,7 +1020,7 @@ function renderStrategyCards(model) {
     {
       tone: "warn",
       title: "Quarterly payments",
-      text: "Large NIL payments can require estimated tax payments. Build a cash reserve before retained entity cash or distributions are spent.",
+      text: "Large NIL payments can require estimated tax payments. Keep enough cash available before retained entity cash or distributions are spent.",
     },
     {
       tone: "bad",
