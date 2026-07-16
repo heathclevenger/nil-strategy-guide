@@ -365,7 +365,8 @@ function calculateScenario(type, gross, assumptions, yearIndex = 0) {
         bigPurchaseReserveTarget,
         Math.max(0, cashRetained - assumptions.annualSpending - nearTermReserveFunded),
       );
-      const cashAfterSpending = cashRetained - assumptions.annualSpending - totalReserveTarget;
+      const retirementFundingCushion = cashRetained - assumptions.annualSpending - totalReserveTarget;
+      const cashAfterSpending = cashRetained - assumptions.annualSpending - bigPurchaseReserveTarget;
       const wealthRetained = cashRetained + retirement;
       const wealthAfterSpending = wealthRetained - assumptions.annualSpending;
 
@@ -391,9 +392,11 @@ function calculateScenario(type, gross, assumptions, yearIndex = 0) {
         bigPurchaseReserveTarget,
         bigPurchaseReserveFunded,
         totalReserveTarget,
+        retirementFundingCushion,
         cashAfterSpending,
         wealthAfterSpending,
         liquidityGap: Math.max(0, -cashAfterSpending),
+        retirementLiquidityGap: Math.max(0, -retirementFundingCushion),
         retirementLimited: desiredRetirement - retirement > 1,
         k1,
         scheduleC,
@@ -432,14 +435,14 @@ function calculateScenario(type, gross, assumptions, yearIndex = 0) {
         };
       };
       let row = compute(desiredDetails, planLabel, desiredRetirement);
-      if (includeRetirement && desiredRetirement > 0 && row.cashAfterSpending < 0) {
+      if (includeRetirement && desiredRetirement > 0 && row.retirementFundingCushion < 0) {
         const zeroContribution = compute({ total: 0, employee: 0, employer: 0 }, planLabel, desiredRetirement);
-        if (zeroContribution.cashAfterSpending >= 0) {
+        if (zeroContribution.retirementFundingCushion >= 0) {
           let low = 0;
           let high = desiredRetirement;
           for (let i = 0; i < 22; i += 1) {
             const mid = (low + high) / 2;
-            if (compute(scaleDetails(mid), planLabel, desiredRetirement).cashAfterSpending >= 0) low = mid;
+            if (compute(scaleDetails(mid), planLabel, desiredRetirement).retirementFundingCushion >= 0) low = mid;
             else high = mid;
           }
           row = compute(scaleDetails(low), planLabel, desiredRetirement);
@@ -692,7 +695,7 @@ function renderMetrics(model) {
     ["Total NIL modeled", money(llc.gross)],
     ["Recommended tax burden", money(best.totalTax)],
     ["Effective tax rate", pct(best.totalTax / Math.max(1, best.gross))],
-    ["After-spending wealth", money(best.wealthAfterSpending)],
+    ["After-spending wealth incl. reserve", money(best.wealthAfterSpending)],
     ["S-corp payroll taxes", money(sCorp.payroll)],
     ["LLC-only entity cost", money(llc.adminCost)],
     ["LLC self-employment tax", money(llc.seTax)],
@@ -709,8 +712,8 @@ function renderMetrics(model) {
     ["LLC plan selected", planMix(model.scenarios.llcRetirement)],
     ["S-Corp plan selected", planMix(model.scenarios.sCorpRetirement)],
     ["Retirement tax impact", money(model.scenarioTotals.sCorp.totalTax - model.scenarioTotals.sCorpRetirement.totalTax)],
-    ["Wealth after spending", money(model.scenarioTotals.sCorpRetirement.wealthAfterSpending)],
-    ["Cash after spending/reserve", money(model.scenarioTotals.sCorpRetirement.cashAfterSpending)],
+    ["Wealth after spending incl. reserve", money(model.scenarioTotals.sCorpRetirement.wealthAfterSpending)],
+    ["Cash after spending/purchases", money(model.scenarioTotals.sCorpRetirement.cashAfterSpending)],
     ["Total tax with retirement", money(model.scenarioTotals.sCorpRetirement.totalTax)],
   ];
 
@@ -747,16 +750,16 @@ function renderPlayerSummary(model) {
       ? `The recommended strategy improves projected wealth by ${money(recommendationLift)} and changes total tax by ${money(taxDifference)} versus taking NIL income with no structure or retirement strategy.`
       : `Without Strategy retains ${money(Math.abs(recommendationLift))} more projected wealth under these inputs, so the model is signaling that structure or retirement complexity may not be justified.`;
   const reserveText = [
-    model.assumptions.nearTermCashNeed > 0 ? `${money(model.assumptions.nearTermCashNeed)} for 10-year liquidity needs` : "",
+    model.assumptions.nearTermCashNeed > 0 ? `${money(model.assumptions.nearTermCashNeed)} retained for 10-year liquidity` : "",
     model.assumptions.bigPurchaseAmount > 0
       ? `${money(model.assumptions.bigPurchaseAmount)} for modeled big purchases`
       : "",
   ].filter(Boolean);
-  const reservePhrase = reserveText.length ? ` and ${reserveText.join(" plus ")}` : "";
+  const reservePhrase = reserveText.length ? ` while keeping ${reserveText.join(" plus ")}` : "";
   const cashBullet =
     best.cashAfterSpending >= 0
-      ? `After reserving ${money(model.assumptions.annualSpending)} per year for spending${reservePhrase}, the recommended path leaves ${money(best.cashAfterSpending)} of modeled cash cushion.`
-      : `The recommended path still shows a ${money(best.liquidityGap)} cash gap after spending, 10-year liquidity needs, and planned purchases, so the player should reduce retirement funding before implementing.`;
+      ? `After planned spending and purchases${reservePhrase}, the recommended path leaves ${money(best.cashAfterSpending)} of modeled available cash.`
+      : `The recommended path still shows a ${money(best.liquidityGap)} cash gap after spending and planned purchases, so the player should reduce retirement funding before implementing.`;
   const planBullet = selectedHasRetirement
     ? `Plan selected: ${planMix(model.scenarios[rec.key])}. Contributions are cash-aware and are reduced when they interfere with spending, 10-year liquidity, or big-purchase inputs.`
     : `Plan selected: none in the top recommendation. The retirement comparison remains available in Advanced analysis.`;
@@ -764,7 +767,7 @@ function renderPlayerSummary(model) {
     selectedIsS ? "Form LLC and elect S-Corp tax treatment" : "Use LLC tax treatment",
     selectedHasRetirement ? `Use ${planMix(model.scenarios[rec.key])}` : "Skip retirement account for now",
     `Reserve ${money(model.assumptions.annualSpending)} per year for spending`,
-    model.assumptions.nearTermCashNeed > 0 ? `Keep ${money(model.assumptions.nearTermCashNeed)} available for 10-year liquidity needs` : "No extra 10-year liquidity need modeled",
+    model.assumptions.nearTermCashNeed > 0 ? `Keep ${money(model.assumptions.nearTermCashNeed)} available as a 10-year liquidity target` : "No extra 10-year liquidity target modeled",
     model.assumptions.bigPurchaseAmount > 0 ? `Keep ${money(model.assumptions.bigPurchaseAmount)} available for big purchases` : "No big purchase reserve modeled",
   ];
 
@@ -783,24 +786,24 @@ function renderPlayerSummary(model) {
         <span>Total NIL modeled</span>
         <span>Total tax</span>
         <span>Change vs. without strategy</span>
-        <span>Cash after spending/reserve</span>
-        <span>Wealth after spending</span>
+        <span>Cash after spending/purchases</span>
+        <span>Wealth after spending incl. reserve</span>
       </div>
       <div class="compare-row">
         <strong>Without Strategy</strong>
         <div><span>Total NIL modeled</span><strong>${money(totalIncome)}</strong></div>
         <div><span>Total tax</span><strong>${money(noStructure.totalTax)}</strong></div>
         <div><span>Change vs. without strategy</span><strong>${money(0)}</strong></div>
-        <div><span>Cash after spending/reserve</span><strong>${money(noStructure.cashAfterSpending)}</strong></div>
-        <div><span>Wealth after spending</span><strong>${money(noStructure.wealthAfterSpending)}</strong></div>
+        <div><span>Cash after spending/purchases</span><strong>${money(noStructure.cashAfterSpending)}</strong></div>
+        <div><span>Wealth after spending incl. reserve</span><strong>${money(noStructure.wealthAfterSpending)}</strong></div>
       </div>
       <div class="compare-row recommended-row">
         <strong>${best.label}</strong>
         <div><span>Total NIL modeled</span><strong>${money(totalIncome)}</strong></div>
         <div><span>Total tax</span><strong>${money(best.totalTax)}</strong></div>
         <div><span>Change vs. without strategy</span><strong>${money(recommendationLift)}</strong></div>
-        <div><span>Cash after spending/reserve</span><strong>${money(best.cashAfterSpending)}</strong></div>
-        <div><span>Wealth after spending</span><strong>${money(best.wealthAfterSpending)}</strong></div>
+        <div><span>Cash after spending/purchases</span><strong>${money(best.cashAfterSpending)}</strong></div>
+        <div><span>Wealth after spending incl. reserve</span><strong>${money(best.wealthAfterSpending)}</strong></div>
       </div>
     </div>
     <div class="player-explain">
@@ -927,11 +930,11 @@ function renderTables(model) {
     ["Effective rate", (row) => row.effectiveRate, "percent"],
     ["Cash retained", "cashRetained"],
     ["Personal spending from owner cash", (row) => -model.assumptions.annualSpending],
-    ["10-year liquidity need", (row) => -row.nearTermReserveTarget],
+    ["Available 10-year cash reserve", "nearTermReserveTarget"],
     ["Big purchase reserve", (row) => -row.bigPurchaseReserveTarget],
-    ["Cash after spending/reserve", "cashAfterSpending"],
+    ["Cash after spending/purchases", "cashAfterSpending"],
     ["Wealth retained incl. retirement", "wealthRetained"],
-    ["Wealth after spending", "wealthAfterSpending"],
+    ["Wealth after spending incl. 10-year reserve", "wealthAfterSpending"],
   ];
 
   const retirementRows = [
@@ -954,11 +957,11 @@ function renderTables(model) {
     ["Effective rate", (row) => row.effectiveRate, "percent"],
     ["Cash retained", "cashRetained"],
     ["Personal spending from owner cash", (row) => -model.assumptions.annualSpending],
-    ["10-year liquidity need", (row) => -row.nearTermReserveTarget],
+    ["Available 10-year cash reserve", "nearTermReserveTarget"],
     ["Big purchase reserve", (row) => -row.bigPurchaseReserveTarget],
-    ["Cash after spending/reserve", "cashAfterSpending"],
+    ["Cash after spending/purchases", "cashAfterSpending"],
     ["Wealth retained incl. retirement", "wealthRetained"],
-    ["Wealth after spending", "wealthAfterSpending"],
+    ["Wealth after spending incl. 10-year reserve", "wealthAfterSpending"],
   ];
 
   renderScenarioTable(model, "baseComparisonTable", ["llc", "sCorp"], baseRows);
@@ -1017,8 +1020,8 @@ function renderStrategyCards(model) {
       title: "Spending feasibility",
       text:
         selected.cashAfterSpending >= 0
-          ? `Recommended path leaves ${money(selected.cashAfterSpending)} after planned spending, reserves, and big purchases.`
-          : `Recommended path still has a ${money(selected.liquidityGap)} gap after planned spending, reserves, and big purchases.`,
+          ? `Recommended path leaves ${money(selected.cashAfterSpending)} after planned spending and big purchases, with the 10-year cash reserve still available.`
+          : `Recommended path still has a ${money(selected.liquidityGap)} gap after planned spending and big purchases.`,
     },
     {
       tone: a.expenses > 0 ? "good" : "warn",

@@ -1015,6 +1015,11 @@ tbody tr:nth-child(odd) td:first-child {
   align-self: start;
 }
 
+.cash-grid .label-text {
+  min-height: 30px;
+  align-items: flex-start;
+}
+
 .control-grid label,
 .year-inputs label {
   color: #4a443e;
