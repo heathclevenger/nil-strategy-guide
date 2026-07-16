@@ -846,14 +846,8 @@ function renderNarrative(model) {
         ? "Solo 401(k)"
         : model.assumptions.retirementPlan === "sep"
           ? "SEP-IRA"
-          : "No retirement plan";
-  const taxWinner = model.scenarioTotals[model.recommendation.bestTaxKey];
+        : "No retirement plan";
   const retirementLimited = Object.values(model.scenarios).some((rows) => rows.some((row) => row.retirementLimited));
-
-  document.getElementById("recommendationTitle").textContent = best.label;
-  document.getElementById("bestSavings").textContent = money(Math.max(0, model.recommendation.sCorpNetBenefit));
-  document.getElementById("recommendationCopy").textContent =
-    `${model.recommendation.reason} The tax-only winner is ${taxWinner.label}, but the final recommendation also weighs setup/admin cost, retirement feasibility, and liquidity.`;
 
   document.getElementById("narrative").innerHTML = `
     <p>
@@ -933,7 +927,6 @@ function renderTables(model) {
   const baseRows = [
     ["Gross NIL income", "gross"],
     ["Business expenses", "expense"],
-    ["Salary mode", (row) => (row.salaryAuto ? "Auto" : row.salary > 0 ? "Override" : "None"), "text"],
     ["W-2 salary to owner", "salary"],
     ["K-1 distribution / Sch C net", (row) => row.k1 || row.scheduleC],
     ["Entity admin cost", "adminCost"],
@@ -960,7 +953,6 @@ function renderTables(model) {
   const retirementRows = [
     ["Gross NIL income", "gross"],
     ["Business expenses", "expense"],
-    ["Salary mode", (row) => (row.salaryAuto ? "Auto" : row.salary > 0 ? "Override" : "None"), "text"],
     ["W-2 salary to owner", "salary"],
     ["Retirement plan selected", "retirementPlanUsed", "text"],
     ["Retirement contribution", "retirement"],
@@ -994,6 +986,8 @@ function renderTables(model) {
 }
 
 function renderStrategyCards(model) {
+  const target = document.getElementById("strategyCards");
+  if (!target) return;
   const a = model.assumptions;
   const totalIncome = model.scenarioTotals.llc.gross;
   const sCorpSavings = model.recommendation.sCorpNetBenefit;
@@ -1062,7 +1056,7 @@ function renderStrategyCards(model) {
     },
   ];
 
-  document.getElementById("strategyCards").innerHTML = cards
+  target.innerHTML = cards
     .map(
       (card) => `
         <article class="strategy-card ${card.tone}">
