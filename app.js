@@ -1,6 +1,7 @@
 const TAX_YEAR = 2026;
 const SS_WAGE_BASE = 184500;
 const SOLO_401K_EMPLOYEE_LIMIT = 24500;
+const RETIREMENT_COMPENSATION_LIMIT = 360000;
 const MEDICARE_ADDITIONAL_THRESHOLDS = {
   single: 200000,
   mfj: 250000,
@@ -266,19 +267,26 @@ function qbiDeduction(passThrough, taxableBeforeQbi, assumptions) {
 
 function statutoryRetirementContribution(entity, assumptions, netAfterExpenses, salary, plan) {
   if (plan === "none") return 0;
+  const annualAdditionsCap = Math.max(0, assumptions.retirementCap);
 
   if (entity === "selfEmployed") {
-    const approxComp = Math.max(0, netAfterExpenses - selfEmploymentTax(netAfterExpenses, assumptions.filingStatus) / 2);
-    const employer = approxComp * 0.2;
-    const autoEmployee = Math.min(SOLO_401K_EMPLOYEE_LIMIT, approxComp);
-    const employee = plan === "solo401k" ? Math.min(assumptions.employeeDeferral || autoEmployee, autoEmployee) : 0;
-    return Math.min(assumptions.retirementCap, employer + employee, approxComp);
+    const earnedIncome = Math.min(
+      RETIREMENT_COMPENSATION_LIMIT,
+      Math.max(0, netAfterExpenses - selfEmploymentTax(netAfterExpenses, assumptions.filingStatus) / 2),
+    );
+    const employer = Math.min(earnedIncome * 0.2, annualAdditionsCap, earnedIncome);
+    if (plan === "sep") return employer;
+    const autoEmployee = Math.min(SOLO_401K_EMPLOYEE_LIMIT, earnedIncome);
+    const employee = Math.min(assumptions.employeeDeferral || autoEmployee, autoEmployee);
+    return Math.min(annualAdditionsCap, earnedIncome, employer + employee);
   }
 
-  const employer = Math.max(0, salary * 0.25);
-  const autoEmployee = Math.min(SOLO_401K_EMPLOYEE_LIMIT, salary);
-  const employee = plan === "solo401k" ? Math.min(assumptions.employeeDeferral || autoEmployee, autoEmployee) : 0;
-  return Math.min(assumptions.retirementCap, employer + employee, Math.max(0, salary + employer));
+  const compensation = Math.min(RETIREMENT_COMPENSATION_LIMIT, Math.max(0, salary));
+  const employer = Math.min(compensation * 0.25, annualAdditionsCap, compensation);
+  if (plan === "sep") return employer;
+  const autoEmployee = Math.min(SOLO_401K_EMPLOYEE_LIMIT, compensation);
+  const employee = Math.min(assumptions.employeeDeferral || autoEmployee, autoEmployee);
+  return Math.min(annualAdditionsCap, compensation, employer + employee);
 }
 
 function sCorpSalaryCandidates(net, assumptions) {
@@ -286,7 +294,8 @@ function sCorpSalaryCandidates(net, assumptions) {
   if (assumptions.salary > 0) return [Math.min(assumptions.salary, net)];
 
   const floorPct = assumptions.salaryFloorPct > 0 ? assumptions.salaryFloorPct / 100 : 0.35;
-  const reasonableFloor = Math.min(net, Math.max(30000, net * floorPct));
+  const spendingSalaryFloor = Math.max(0, assumptions.annualSpending);
+  const reasonableFloor = Math.min(net, Math.max(30000, spendingSalaryFloor, net * floorPct));
   const candidates = [
     reasonableFloor,
     50000,
@@ -815,7 +824,7 @@ function renderNarrative(model) {
     <p>
       This analysis evaluates ${money(llc.gross)} of projected NIL income over ${model.assumptions.yearCount}
       year${model.assumptions.yearCount > 1 ? "s" : ""}, with ${money(model.assumptions.annualSpending)} of annual
-      personal spending modeled before determining how much cash can realistically be retained or contributed to retirement.
+      personal spending modeled as an owner cash/salary need before determining how much cash can realistically be retained or contributed to retirement.
       Page 1 compares LLC against S-Corp before any retirement-account strategy is used.
     </p>
     <div class="memo-callout">
@@ -830,7 +839,7 @@ function renderNarrative(model) {
       <li><strong>Why not always S-corp:</strong> low NIL income, high spending needs, high compliance cost, or a higher reasonable salary can erase the benefit.</li>
       <li><strong>LLC treatment:</strong> a single-member LLC generally keeps Schedule C / self-employment tax treatment unless it makes an S-corp election. The LLC can still be useful for liability separation, contracts, banking, and recordkeeping.</li>
       <li><strong>S-corp mechanics:</strong> the player-owner takes a defensible W-2 salary, and remaining profit may be distributed as K-1 pass-through income not subject to self-employment tax.</li>
-      <li><strong>Reasonable salary risk:</strong> the app auto-selects S-corp salary unless an override is entered, using a conservative compensation floor because NIL income is driven heavily by the athlete's personal services.</li>
+      <li><strong>Reasonable salary risk:</strong> the app auto-selects S-corp salary unless an override is entered, using a conservative compensation floor and the player's annual spending need because NIL income is driven heavily by the athlete's personal services.</li>
       <li><strong>Retirement layer:</strong> the modeled ${retirementName} adds ${money(sCorpRetirement.retirement)} of tax-deferred savings and ${money(Math.max(0, retirementExtra))} of additional tax reduction versus S-corp alone.${retirementLimited ? " Contributions were reduced where spending needs made the maximum contribution unrealistic." : ""}</li>
       <li><strong>QBI / Section 199A:</strong> this model defaults to zero because high-income athletics and endorsement work may be treated conservatively as SSTB-like personal services; toggle it only with advisor support.</li>
       <li><strong>State planning:</strong> the model uses the selected ${model.assumptions.selectedState.name} schedule for ordinary NIL income.${model.assumptions.selectedState.note ? ` ${model.assumptions.selectedState.note}` : ""} Residency, duty days, source income, and local taxes can change the result.</li>
@@ -846,7 +855,7 @@ function renderNarrative(model) {
     </p>
     <ul>
       <li><strong>Auto retirement selection:</strong> the model compares SEP-IRA and Solo 401(k) each year and uses the stronger result for retained wealth.</li>
-      <li><strong>Cash-aware funding:</strong> if the planned annual spending would create a shortfall, the contribution is reduced before the recommendation is calculated.</li>
+      <li><strong>Cash-aware funding:</strong> if the planned annual spending from owner salary/cash would create a shortfall, the contribution is reduced before the recommendation is calculated.</li>
       <li><strong>Compensation link:</strong> S-Corp retirement funding depends heavily on the W-2 salary selected by the optimizer or entered as an override.</li>
       <li><strong>Implementation note:</strong> plan documents, employee status, deadlines, and advisor setup should be confirmed before relying on any retirement contribution estimate.</li>
     </ul>
@@ -905,7 +914,7 @@ function renderTables(model) {
     ["Total tax", "totalTax"],
     ["Effective rate", (row) => row.effectiveRate, "percent"],
     ["Cash retained", "cashRetained"],
-    ["Personal spending need", (row) => -model.assumptions.annualSpending],
+    ["Personal spending from owner cash", (row) => -model.assumptions.annualSpending],
     ["5-10 year cash reserve", (row) => -row.nearTermReserveTarget],
     ["Big purchase reserve", (row) => -row.bigPurchaseReserveTarget],
     ["Cash after spending/reserve", "cashAfterSpending"],
@@ -933,7 +942,7 @@ function renderTables(model) {
     ["Total tax", "totalTax"],
     ["Effective rate", (row) => row.effectiveRate, "percent"],
     ["Cash retained", "cashRetained"],
-    ["Personal spending need", (row) => -model.assumptions.annualSpending],
+    ["Personal spending from owner cash", (row) => -model.assumptions.annualSpending],
     ["5-10 year cash reserve", (row) => -row.nearTermReserveTarget],
     ["Big purchase reserve", (row) => -row.bigPurchaseReserveTarget],
     ["Cash after spending/reserve", "cashAfterSpending"],
@@ -946,7 +955,7 @@ function renderTables(model) {
   document.getElementById("baseTableNote").textContent =
     `* Page 1 excludes retirement-account contributions. Entity/admin/setup costs, payroll/self-employment tax, ${model.assumptions.selectedState.name} state tax, local tax overrides, and planned spending are included.`;
   document.getElementById("retirementTableNote").textContent =
-    `* Page 2 adds the optimized retirement account strategy. SEP-IRA and Solo 401(k) are compared automatically unless overridden in Advanced inputs; contributions are reduced when planned spending requires cash.`;
+    `* Page 2 adds the optimized retirement account strategy. SEP-IRA and Solo 401(k) are compared automatically unless overridden in Advanced inputs; contributions are capped by account type and reduced when planned spending requires owner cash.`;
 }
 
 function renderStrategyCards(model) {

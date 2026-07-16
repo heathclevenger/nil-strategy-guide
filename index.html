@@ -49,7 +49,7 @@
             </div>
             <div class="control-grid cash-grid">
               <label>
-                <span class="label-text">Annual personal spending <span class="info-dot" tabindex="0" data-info="Cash the player expects to spend each year. The optimizer avoids retirement contributions that would conflict with this need.">i</span></span>
+                <span class="label-text">Annual personal spending <span class="info-dot" tabindex="0" data-info="Cash the player expects to spend each year, modeled as an owner salary/cash need. The optimizer avoids retirement contributions that would conflict with this need.">i</span></span>
                 <input id="annualSpending" type="text" inputmode="numeric" data-money value="30000" />
               </label>
               <label>
@@ -308,7 +308,7 @@
               <ul>
                 <li><a href="https://www.irs.gov/businesses/small-businesses-self-employed/self-employment-tax-social-security-and-medicare-taxes">IRS self-employment tax guidance</a>: 15.3% SE tax, Social Security plus Medicare, with an above-the-line deduction for the employer-equivalent portion.</li>
                 <li><a href="https://www.irs.gov/businesses/small-businesses-self-employed/s-corporation-compensation-and-medical-insurance-issues">IRS S-corp compensation guidance</a>: shareholder-employees must receive reasonable compensation before non-wage distributions.</li>
-                <li>2026 assumptions in this model: $184,500 Social Security wage base, $16,100 single standard deduction, and $72,000 retirement annual additions cap.</li>
+                <li>2026 assumptions in this model: $184,500 Social Security wage base, $16,100 single standard deduction, $24,500 Solo 401(k) elective deferral limit, $72,000 SEP/Solo 401(k) annual additions cap, and $360,000 retirement compensation cap.</li>
               </ul>
             </section>
             <p class="page-disclosure">
