@@ -228,10 +228,18 @@ function federalTax(taxable, status) {
 }
 
 function ficaTax(wages, status, otherWages = 0) {
+  const parts = ficaTaxParts(wages, status, otherWages);
+  return parts.employee + parts.employer;
+}
+
+function ficaTaxParts(wages, status, otherWages = 0) {
   const ssTaxable = Math.max(0, Math.min(wages, SS_WAGE_BASE - otherWages));
-  const medicare = wages * 0.029;
+  const employerSsTaxable = Math.max(0, Math.min(wages, SS_WAGE_BASE));
   const additionalBase = Math.max(0, wages + otherWages - MEDICARE_ADDITIONAL_THRESHOLDS[status]);
-  return ssTaxable * 0.124 + medicare + additionalBase * 0.009;
+  return {
+    employee: ssTaxable * 0.062 + wages * 0.0145 + additionalBase * 0.009,
+    employer: employerSsTaxable * 0.062 + wages * 0.0145,
+  };
 }
 
 function selfEmploymentTax(netBusiness, status, otherWages = 0) {
@@ -265,28 +273,32 @@ function qbiDeduction(passThrough, taxableBeforeQbi, assumptions) {
   return Math.max(0, Math.min(passThrough * 0.2, taxableBeforeQbi * 0.2));
 }
 
-function statutoryRetirementContribution(entity, assumptions, netAfterExpenses, salary, plan) {
-  if (plan === "none") return 0;
+function retirementContributionDetails(entity, assumptions, businessProfit, salary, plan) {
+  if (plan === "none") return { total: 0, employee: 0, employer: 0 };
   const annualAdditionsCap = Math.max(0, assumptions.retirementCap);
 
   if (entity === "selfEmployed") {
     const earnedIncome = Math.min(
       RETIREMENT_COMPENSATION_LIMIT,
-      Math.max(0, netAfterExpenses - selfEmploymentTax(netAfterExpenses, assumptions.filingStatus) / 2),
+      Math.max(0, businessProfit - selfEmploymentTax(businessProfit, assumptions.filingStatus, assumptions.otherIncome) / 2),
     );
     const employer = Math.min(earnedIncome * 0.2, annualAdditionsCap, earnedIncome);
-    if (plan === "sep") return employer;
+    if (plan === "sep") return { total: employer, employee: 0, employer };
     const autoEmployee = Math.min(SOLO_401K_EMPLOYEE_LIMIT, earnedIncome);
     const employee = Math.min(assumptions.employeeDeferral || autoEmployee, autoEmployee);
-    return Math.min(annualAdditionsCap, earnedIncome, employer + employee);
+    const total = Math.min(annualAdditionsCap, earnedIncome, employer + employee);
+    const adjustedEmployee = Math.min(employee, total);
+    return { total, employee: adjustedEmployee, employer: Math.max(0, total - adjustedEmployee) };
   }
 
   const compensation = Math.min(RETIREMENT_COMPENSATION_LIMIT, Math.max(0, salary));
   const employer = Math.min(compensation * 0.25, annualAdditionsCap, compensation);
-  if (plan === "sep") return employer;
+  if (plan === "sep") return { total: employer, employee: 0, employer };
   const autoEmployee = Math.min(SOLO_401K_EMPLOYEE_LIMIT, compensation);
   const employee = Math.min(assumptions.employeeDeferral || autoEmployee, autoEmployee);
-  return Math.min(annualAdditionsCap, compensation, employer + employee);
+  const total = Math.min(annualAdditionsCap, compensation, employer + employee);
+  const adjustedEmployee = Math.min(employee, total);
+  return { total, employee: adjustedEmployee, employer: Math.max(0, total - adjustedEmployee) };
 }
 
 function sCorpSalaryCandidates(net, assumptions) {
@@ -328,13 +340,21 @@ function calculateScenario(type, gross, assumptions, yearIndex = 0) {
     const structureCost = (isS ? assumptions.adminCost : isPlainLlc ? assumptions.llcAdminCost : 0) + setupCost;
     const adminCost = Math.min(structureCost, Math.max(0, net - salary));
 
-    function compute(retirement, planUsed = "None", desiredRetirement = retirement) {
-      const k1 = isS ? Math.max(0, net - salary - adminCost - retirement - health) : 0;
-      const scheduleC = isS ? 0 : Math.max(0, net - retirement - health);
-      const payroll = isS ? ficaTax(salary, assumptions.filingStatus, assumptions.otherIncome) : 0;
-      const seTax = isS ? 0 : selfEmploymentTax(scheduleC, assumptions.filingStatus, assumptions.otherIncome);
+    function compute(retirementDetails = { total: 0, employee: 0, employer: 0 }, planUsed = "None", desiredRetirement = retirementDetails.total) {
+      const retirement = retirementDetails.total;
+      const employeeRetirement = retirementDetails.employee;
+      const employerRetirement = retirementDetails.employer;
+      const payrollParts = isS ? ficaTaxParts(salary, assumptions.filingStatus, assumptions.otherIncome) : { employee: 0, employer: 0 };
+      const payroll = payrollParts.employee + payrollParts.employer;
+      const scheduleCBeforeRetirement = isS ? 0 : Math.max(0, net - adminCost);
+      const k1 = isS ? Math.max(0, net - salary - adminCost - payrollParts.employer - employerRetirement - health) : 0;
+      const scheduleC = scheduleCBeforeRetirement;
+      const seTax = isS ? 0 : selfEmploymentTax(scheduleCBeforeRetirement, assumptions.filingStatus, assumptions.otherIncome);
       const halfSeDeduction = isS ? 0 : seTax / 2;
-      const agi = assumptions.otherIncome + salary + k1 + scheduleC - halfSeDeduction;
+      const taxableSalary = Math.max(0, salary - employeeRetirement);
+      const selfEmployedRetirement = isS ? 0 : retirement;
+      const healthDeduction = isS ? 0 : health;
+      const agi = assumptions.otherIncome + taxableSalary + k1 + scheduleC - halfSeDeduction - selfEmployedRetirement - healthDeduction;
       const deduction =
         assumptions.federalDeductionOverride > 0
           ? assumptions.federalDeductionOverride
@@ -376,6 +396,8 @@ function calculateScenario(type, gross, assumptions, yearIndex = 0) {
         adminCost,
         setupCost,
         retirement,
+        employeeRetirement,
+        employerRetirement,
         desiredRetirement,
         retirementPlanUsed: planUsed,
         health,
@@ -400,6 +422,8 @@ function calculateScenario(type, gross, assumptions, yearIndex = 0) {
         federal,
         state,
         local,
+        employerPayroll: payrollParts.employer,
+        employeePayroll: payrollParts.employee,
         totalTax,
         cashRetained,
         wealthRetained,
@@ -408,22 +432,33 @@ function calculateScenario(type, gross, assumptions, yearIndex = 0) {
     }
 
     function solveForPlan(plan) {
-      const desiredRetirement = includeRetirement
-        ? statutoryRetirementContribution(isS ? "sCorp" : "selfEmployed", assumptions, Math.max(0, net - adminCost), salary, plan)
-        : 0;
+      const businessProfitForRetirement = isS ? Math.max(0, net - adminCost) : Math.max(0, net - adminCost);
+      const desiredDetails = includeRetirement
+        ? retirementContributionDetails(isS ? "sCorp" : "selfEmployed", assumptions, businessProfitForRetirement, salary, plan)
+        : { total: 0, employee: 0, employer: 0 };
+      const desiredRetirement = desiredDetails.total;
       const planLabel = plan === "solo401k" ? "Solo 401(k)" : plan === "sep" ? "SEP-IRA" : "None";
-      let row = compute(desiredRetirement, planLabel, desiredRetirement);
+      const scaleDetails = (total) => {
+        if (desiredRetirement <= 0) return { total: 0, employee: 0, employer: 0 };
+        const ratio = total / desiredRetirement;
+        return {
+          total,
+          employee: desiredDetails.employee * ratio,
+          employer: desiredDetails.employer * ratio,
+        };
+      };
+      let row = compute(desiredDetails, planLabel, desiredRetirement);
       if (includeRetirement && desiredRetirement > 0 && row.cashAfterSpending < 0) {
-        const zeroContribution = compute(0, planLabel, desiredRetirement);
+        const zeroContribution = compute({ total: 0, employee: 0, employer: 0 }, planLabel, desiredRetirement);
         if (zeroContribution.cashAfterSpending >= 0) {
           let low = 0;
           let high = desiredRetirement;
           for (let i = 0; i < 22; i += 1) {
             const mid = (low + high) / 2;
-            if (compute(mid, planLabel, desiredRetirement).cashAfterSpending >= 0) low = mid;
+            if (compute(scaleDetails(mid), planLabel, desiredRetirement).cashAfterSpending >= 0) low = mid;
             else high = mid;
           }
-          row = compute(low, planLabel, desiredRetirement);
+          row = compute(scaleDetails(low), planLabel, desiredRetirement);
         } else {
           row = zeroContribution;
         }
@@ -431,7 +466,7 @@ function calculateScenario(type, gross, assumptions, yearIndex = 0) {
       return row;
     }
 
-    if (!includeRetirement) return compute(0, "None", 0);
+    if (!includeRetirement) return compute({ total: 0, employee: 0, employer: 0 }, "None", 0);
 
     if (assumptions.retirementPlan === "auto") {
       return ["sep", "solo401k"]
