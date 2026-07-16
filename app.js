@@ -854,7 +854,7 @@ function renderNarrative(model) {
       <li><strong>Recommendation rule:</strong> S-corp must beat LLC after modeled setup/admin costs, planned spending, and retirement feasibility.</li>
       <li><strong>Why not always S-corp:</strong> low NIL income, high spending needs, high compliance cost, or a higher reasonable salary can erase the benefit.</li>
       <li><strong>LLC treatment:</strong> a single-member LLC generally keeps Schedule C / self-employment tax treatment unless it makes an S-corp election. The LLC can still be useful for liability separation, contracts, banking, and recordkeeping.</li>
-      <li><strong>S-corp mechanics:</strong> the player-owner takes a defensible W-2 salary, and remaining profit may be distributed as K-1 pass-through income not subject to self-employment tax.</li>
+      <li><strong>S-corp mechanics:</strong> the player-owner takes a defensible W-2 salary, and remaining profit is K-1 pass-through income that may be retained inside the structure or distributed later; it is generally not subject to self-employment tax.</li>
       <li><strong>Reasonable salary risk:</strong> the app links S-corp W-2 salary to the annual personal spending input unless an override is entered. That salary should still be reviewed for reasonable-compensation support.</li>
       <li><strong>Retirement layer:</strong> the modeled ${retirementName} adds ${money(sCorpRetirement.retirement)} of tax-deferred savings and ${money(Math.max(0, retirementExtra))} of additional tax reduction versus S-corp alone.${retirementLimited ? " Contributions were reduced where spending needs made the maximum contribution unrealistic." : ""}</li>
       <li><strong>QBI / Section 199A:</strong> this model defaults to zero because high-income athletics and endorsement work may be treated conservatively as SSTB-like personal services; toggle it only with advisor support.</li>
@@ -915,7 +915,7 @@ function renderTables(model) {
     ["Gross NIL income", "gross"],
     ["Business expenses", "expense"],
     ["W-2 salary to owner", "salary"],
-    ["K-1 distribution / Sch C net", (row) => row.k1 || row.scheduleC],
+    ["K-1 pass-through profit / Sch C net", (row) => row.k1 || row.scheduleC],
     ["Entity admin cost", "adminCost"],
     ["One-time setup cost", "setupCost"],
     ["SE / payroll tax", (row) => row.seTax + row.payroll],
@@ -943,7 +943,7 @@ function renderTables(model) {
     ["W-2 salary to owner", "salary"],
     ["Retirement plan selected", "retirementPlanUsed", "text"],
     ["Retirement contribution", "retirement"],
-    ["K-1 distribution / Sch C net", (row) => row.k1 || row.scheduleC],
+    ["K-1 pass-through profit / Sch C net", (row) => row.k1 || row.scheduleC],
     ["Entity admin cost", "adminCost"],
     ["One-time setup cost", "setupCost"],
     ["Health premium strategy", "health"],
@@ -1034,7 +1034,7 @@ function renderStrategyCards(model) {
     {
       tone: "warn",
       title: "Quarterly payments",
-      text: "Large NIL payments can require estimated tax payments. Build a cash reserve before distributions are spent.",
+      text: "Large NIL payments can require estimated tax payments. Build a cash reserve before retained entity cash or distributions are spent.",
     },
     {
       tone: "bad",
