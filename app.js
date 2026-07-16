@@ -747,7 +747,7 @@ function renderPlayerSummary(model) {
       ? `The recommended strategy improves projected wealth by ${money(recommendationLift)} and changes total tax by ${money(taxDifference)} versus taking NIL income with no structure or retirement strategy.`
       : `Without Strategy retains ${money(Math.abs(recommendationLift))} more projected wealth under these inputs, so the model is signaling that structure or retirement complexity may not be justified.`;
   const reserveText = [
-    model.assumptions.nearTermCashNeed > 0 ? `${money(model.assumptions.nearTermCashNeed)} for 5-10 year needs` : "",
+    model.assumptions.nearTermCashNeed > 0 ? `${money(model.assumptions.nearTermCashNeed)} for 10-year liquidity needs` : "",
     model.assumptions.bigPurchaseAmount > 0
       ? `${money(model.assumptions.bigPurchaseAmount)} for modeled big purchases`
       : "",
@@ -756,15 +756,15 @@ function renderPlayerSummary(model) {
   const cashBullet =
     best.cashAfterSpending >= 0
       ? `After reserving ${money(model.assumptions.annualSpending)} per year for spending${reservePhrase}, the recommended path leaves ${money(best.cashAfterSpending)} of modeled cash cushion.`
-      : `The recommended path still shows a ${money(best.liquidityGap)} cash gap after spending, reserve needs, and planned purchases, so the player should reduce retirement funding or spending assumptions before implementing.`;
+      : `The recommended path still shows a ${money(best.liquidityGap)} cash gap after spending, 10-year liquidity needs, and planned purchases, so the player should reduce retirement funding before implementing.`;
   const planBullet = selectedHasRetirement
-    ? `Plan selected: ${planMix(model.scenarios[rec.key])}. Contributions are cash-aware and are reduced when they interfere with the spending/reserve inputs.`
+    ? `Plan selected: ${planMix(model.scenarios[rec.key])}. Contributions are cash-aware and are reduced when they interfere with spending, 10-year liquidity, or big-purchase inputs.`
     : `Plan selected: none in the top recommendation. The retirement comparison remains available in Advanced analysis.`;
   const actionItems = [
     selectedIsS ? "Form LLC and elect S-Corp tax treatment" : "Use LLC tax treatment",
     selectedHasRetirement ? `Use ${planMix(model.scenarios[rec.key])}` : "Skip retirement account for now",
     `Reserve ${money(model.assumptions.annualSpending)} per year for spending`,
-    model.assumptions.nearTermCashNeed > 0 ? `Keep ${money(model.assumptions.nearTermCashNeed)} available for 5-10 year needs` : "No extra 5-10 year reserve modeled",
+    model.assumptions.nearTermCashNeed > 0 ? `Keep ${money(model.assumptions.nearTermCashNeed)} available for 10-year liquidity needs` : "No extra 10-year liquidity need modeled",
     model.assumptions.bigPurchaseAmount > 0 ? `Keep ${money(model.assumptions.bigPurchaseAmount)} available for big purchases` : "No big purchase reserve modeled",
   ];
 
@@ -927,7 +927,7 @@ function renderTables(model) {
     ["Effective rate", (row) => row.effectiveRate, "percent"],
     ["Cash retained", "cashRetained"],
     ["Personal spending from owner cash", (row) => -model.assumptions.annualSpending],
-    ["5-10 year cash reserve", (row) => -row.nearTermReserveTarget],
+    ["10-year liquidity need", (row) => -row.nearTermReserveTarget],
     ["Big purchase reserve", (row) => -row.bigPurchaseReserveTarget],
     ["Cash after spending/reserve", "cashAfterSpending"],
     ["Wealth retained incl. retirement", "wealthRetained"],
@@ -954,7 +954,7 @@ function renderTables(model) {
     ["Effective rate", (row) => row.effectiveRate, "percent"],
     ["Cash retained", "cashRetained"],
     ["Personal spending from owner cash", (row) => -model.assumptions.annualSpending],
-    ["5-10 year cash reserve", (row) => -row.nearTermReserveTarget],
+    ["10-year liquidity need", (row) => -row.nearTermReserveTarget],
     ["Big purchase reserve", (row) => -row.bigPurchaseReserveTarget],
     ["Cash after spending/reserve", "cashAfterSpending"],
     ["Wealth retained incl. retirement", "wealthRetained"],

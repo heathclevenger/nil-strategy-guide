@@ -5,7 +5,7 @@ A static web app for modeling NIL income structure options across 1-4 years.
 ## What It Does
 
 - Compares LLC, LLC with retirement, S-Corp, and S-Corp with retirement.
-- Models federal income tax, self-employment tax, payroll tax, simplified state tax, LLC admin cost, S-corp admin cost, QBI assumptions, health premium planning, SEP-IRA, Solo 401(k) assumptions, annual personal spending needs, cash needed in the next 5-10 years, and one-time big purchases by selected year.
+- Models federal income tax, self-employment tax, payroll tax, simplified state tax, LLC admin cost, S-corp admin cost, QBI assumptions, health premium planning, SEP-IRA, Solo 401(k) assumptions, annual personal spending needs, cash needed in the next 10 years, and one-time big purchases by selected year.
 - Includes all 50 states plus Washington, D.C. State tax presets use the supplied 2025 single-filer ordinary-income rates, including graduated brackets where provided.
 - Recommends S-corp only when it improves after-spending wealth after modeled structure fees and does not create a cash shortfall.
 - Defaults to automatic optimization for S-corp salary and retirement strategy, comparing SEP-IRA vs. Solo 401(k), applying plan-specific contribution caps, reducing contributions when spending, reserves, or big purchases require cash, and using the better result.
