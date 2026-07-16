@@ -1,0 +1,20 @@
+{
+  "name": "nil-strategy-planner",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static NIL tax structure planning app for GitHub and Vercel deployment.",
+  "scripts": {
+    "dev": "npx serve .",
+    "start": "npx serve ."
+  },
+  "keywords": [
+    "nil",
+    "tax",
+    "planning",
+    "vercel"
+  ],
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "serve": "^14.2.4"
+  }
+}

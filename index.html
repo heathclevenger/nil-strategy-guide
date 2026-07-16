@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NIL Strategy Planner</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="workspace">
+        <aside class="controls" aria-label="Planning inputs">
+          <div class="brand-row">
+            <h1>NIL Strategy Guide</h1>
+          </div>
+
+          <div class="control-grid">
+            <label>
+              <span class="label-text">Player state <span class="info-dot" tabindex="0" data-info="State used for the state income tax estimate. Local taxes and source-income rules may still apply.">i</span></span>
+              <select id="statePreset"></select>
+            </label>
+            <label>
+              <span class="label-text">Filing status <span class="info-dot" tabindex="0" data-info="Federal filing status used for standard deduction, tax brackets, and certain payroll tax thresholds.">i</span></span>
+              <select id="filingStatus">
+                <option value="single">Single</option>
+                <option value="mfj">Married filing jointly</option>
+                <option value="hoh">Head of household</option>
+              </select>
+            </label>
+            <label>
+              <span class="label-text">Other taxable income <span class="info-dot" tabindex="0" data-info="Other taxable income outside NIL. This can affect federal brackets, payroll tax thresholds, and whether strategies remain valuable.">i</span></span>
+              <input id="otherIncome" type="text" inputmode="numeric" data-money value="0" />
+            </label>
+            <label>
+              <span class="label-text">Number of years <span class="info-dot" tabindex="0" data-info="How many years of NIL income to model. The income-by-year boxes update to match this selection.">i</span></span>
+              <select id="yearCount">
+                <option>1</option>
+                <option>2</option>
+                <option selected>3</option>
+                <option>4</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Cash needs</h2>
+              <span>Spending changes what is realistic</span>
+            </div>
+            <div class="control-grid cash-grid">
+              <label>
+                <span class="label-text">Annual personal spending <span class="info-dot" tabindex="0" data-info="Cash the player expects to spend each year. The optimizer avoids retirement contributions that would conflict with this need.">i</span></span>
+                <input id="annualSpending" type="text" inputmode="numeric" data-money value="30000" />
+              </label>
+              <label>
+                <span class="label-text">Needed in next 5-10 years <span class="info-dot" tabindex="0" data-info="Cash the player wants to keep available for near-term goals, rather than locking it into retirement accounts.">i</span></span>
+                <input id="nearTermCashNeed" type="text" inputmode="numeric" data-money value="0" />
+              </label>
+              <label>
+                <span class="label-text">Business expenses <span class="info-dot" tabindex="0" data-info="Expected deductible NIL-related expenses, such as agent, legal, accounting, content, travel, or production costs.">i</span></span>
+                <input id="expenses" type="text" inputmode="numeric" data-money value="0" />
+              </label>
+              <label class="combined-input big-purchase-input">
+                <span class="label-text">Big purchase / year <span class="info-dot" tabindex="0" data-info="A one-time planned purchase and the year when that cash should be preserved.">i</span></span>
+                <button id="addBigPurchase" class="add-row-button" type="button" aria-label="Add another big purchase">+</button>
+                <span class="combined-fields">
+                  <input id="bigPurchaseAmount" type="text" inputmode="numeric" data-money value="0" aria-label="Big purchase amount" />
+                  <select id="bigPurchaseYear" class="big-purchase-year" aria-label="Big purchase year">
+                    <option value="1" selected>Year 1</option>
+                    <option value="2">Year 2</option>
+                    <option value="3">Year 3</option>
+                    <option value="4">Year 4</option>
+                  </select>
+                </span>
+                <span class="combined-fields big-purchase-row is-hidden">
+                  <input id="bigPurchaseAmount2" type="text" inputmode="numeric" data-money value="0" aria-label="Second big purchase amount" />
+                  <select id="bigPurchaseYear2" class="big-purchase-year" aria-label="Second big purchase year"></select>
+                </span>
+                <span class="combined-fields big-purchase-row is-hidden">
+                  <input id="bigPurchaseAmount3" type="text" inputmode="numeric" data-money value="0" aria-label="Third big purchase amount" />
+                  <select id="bigPurchaseYear3" class="big-purchase-year" aria-label="Third big purchase year"></select>
+                </span>
+                <span class="combined-fields big-purchase-row is-hidden">
+                  <input id="bigPurchaseAmount4" type="text" inputmode="numeric" data-money value="0" aria-label="Fourth big purchase amount" />
+                  <select id="bigPurchaseYear4" class="big-purchase-year" aria-label="Fourth big purchase year"></select>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Income by year</h2>
+              <span>Gross NIL before expenses</span>
+            </div>
+            <div id="incomeInputs" class="year-inputs"></div>
+          </div>
+
+          <details class="advanced-inputs">
+            <summary>Advanced inputs</summary>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Business assumptions</h2>
+              <span>Editable planning levers</span>
+            </div>
+            <div class="control-grid">
+              <label>
+                S-corp salary override (0 = auto)
+                <input id="salary" type="text" inputmode="numeric" data-money value="0" />
+              </label>
+              <label>
+                LLC admin cost
+                <input id="llcAdminCost" type="text" inputmode="numeric" data-money value="500" />
+              </label>
+              <label>
+                S-corp admin cost
+                <input id="adminCost" type="text" inputmode="numeric" data-money value="2500" />
+              </label>
+              <label>
+                Top state rate / custom rate
+                <input id="stateRate" type="number" min="0" max="15" step="0.1" value="5" />
+              </label>
+              <label>
+                Zero-tax floor / custom floor
+                <input id="stateFloor" type="text" inputmode="numeric" data-money value="10000" />
+              </label>
+              <label>
+                QBI deduction
+                <select id="qbiMode">
+                  <option value="none" selected>None / SSTB phased out</option>
+                  <option value="full">20% modeled</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Additional assumptions</h2>
+              <span>Optional details for a tighter analysis</span>
+            </div>
+            <div class="control-grid">
+              <label>
+                LLC setup cost
+                <input id="llcSetupCost" type="text" inputmode="numeric" data-money value="0" />
+              </label>
+              <label>
+                S-corp setup cost
+                <input id="sCorpSetupCost" type="text" inputmode="numeric" data-money value="0" />
+              </label>
+              <label>
+                Local income tax rate
+                <input id="localTaxRate" type="number" min="0" max="10" step="0.1" value="0" />
+              </label>
+              <label>
+                State taxable share
+                <input id="stateIncomeShare" type="number" min="0" max="100" step="5" value="100" />
+              </label>
+              <label>
+                Federal deduction override
+                <input id="federalDeductionOverride" type="text" inputmode="numeric" data-money value="0" />
+              </label>
+              <label>
+                Other-state tax credit
+                <input id="otherStateTaxCredit" type="text" inputmode="numeric" data-money value="0" />
+              </label>
+              <label>
+                Salary floor override %
+                <input id="salaryFloorPct" type="number" min="0" max="100" step="5" value="0" />
+              </label>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Retirement strategy</h2>
+              <span>Optional tax deferral</span>
+            </div>
+            <div class="control-grid">
+              <label>
+                Plan
+                <select id="retirementPlan">
+                  <option value="auto" selected>Auto optimize</option>
+                  <option value="sep">SEP-IRA</option>
+                  <option value="solo401k">Solo 401(k)</option>
+                  <option value="none">None</option>
+                </select>
+              </label>
+              <label>
+                Employee deferral
+                <input id="employeeDeferral" type="text" inputmode="numeric" data-money value="0" />
+              </label>
+              <label>
+                Annual additions cap
+                <input id="retirementCap" type="text" inputmode="numeric" data-money value="72000" />
+              </label>
+              <label>
+                Include health premium strategy
+                <select id="healthPremiums">
+                  <option value="0" selected>No</option>
+                  <option value="6000">$6,000 / year</option>
+                  <option value="12000">$12,000 / year</option>
+                </select>
+              </label>
+            </div>
+          </div>
+          </details>
+        </aside>
+
+        <section class="results" aria-live="polite">
+          <article class="memo-page player-summary-page">
+            <div class="memo-topbar">
+              <span></span>
+              <span>Player Recommendation</span>
+            </div>
+            <section class="analysis-main">
+              <div class="section-title">
+                <h2>Recommended strategy</h2>
+                <button id="printBtn" class="secondary-button">Print</button>
+              </div>
+              <div id="playerSummary" class="player-summary"></div>
+            </section>
+            <p class="page-disclosure">
+              This tool provides estimates for hypothetical purposes only. Calculations rely on user-entered assumptions (tax brackets, deductions, filing status, investment returns, etc.) and simplified formulas. They may not reflect the full complexity of the federal and state tax code, including phase-outs, credits, alternative minimum tax rules, state-specific provisions, or recent legislative changes. Before making decisions about how to time or structure a signing bonus, consult a qualified CPA, tax advisor, or financial planner who can review your specific circumstances.
+            </p>
+            <div class="memo-footer">
+              <span>Confidential - Prepared for Client Use</span>
+              <span>Page 1</span>
+            </div>
+          </article>
+
+          <details class="advanced-analysis">
+            <summary>
+              <span>Advanced analysis</span>
+              <span class="advanced-toggle-cue">
+                <small class="expand-copy">Click to expand</small>
+                <small class="collapse-copy">Click to collapse</small>
+              </span>
+            </summary>
+
+          <article class="memo-page">
+            <div class="memo-topbar">
+              <span></span>
+              <span>Planning Recommendations</span>
+            </div>
+            <div class="analysis-layout">
+              <section class="analysis-main">
+              <div class="section-title">
+                <h2>Planning recommendations</h2>
+              </div>
+              <div id="narrative" class="narrative"></div>
+              <div class="summary-band">
+                <div class="recommend-label">Recommended</div>
+                <div>
+                  <h2 id="recommendationTitle">LLC taxed as S corporation</h2>
+                  <p id="recommendationCopy"></p>
+                </div>
+                <div class="big-number">
+                  <span id="bestSavings">$0</span>
+                  <small>S-corp net benefit</small>
+                </div>
+              </div>
+              <div class="table-wrap">
+                <table id="baseComparisonTable"></table>
+              </div>
+              <p id="baseTableNote" class="table-note"></p>
+              <div class="metric-grid" id="metricGrid"></div>
+              </section>
+
+              <aside class="strategy-stack">
+              <h2>Strategy checklist</h2>
+              <div id="strategyCards" class="strategy-cards"></div>
+              </aside>
+            </div>
+
+            <p class="page-disclosure">
+              This tool provides estimates for hypothetical purposes only. Calculations rely on user-entered assumptions (tax brackets, deductions, filing status, investment returns, etc.) and simplified formulas. They may not reflect the full complexity of the federal and state tax code, including phase-outs, credits, alternative minimum tax rules, state-specific provisions, or recent legislative changes. Before making decisions about how to time or structure a signing bonus, consult a qualified CPA, tax advisor, or financial planner who can review your specific circumstances.
+            </p>
+            <div class="memo-footer">
+            <span>Confidential - Prepared for Client Use</span>
+            <span>Page 2</span>
+            </div>
+          </article>
+
+          <article class="memo-page">
+            <div class="memo-topbar">
+              <span></span>
+              <span>Retirement Strategy</span>
+            </div>
+            <section class="analysis-main">
+              <div class="section-title">
+                <h2>Retirement recommendations</h2>
+              </div>
+              <div id="retirementNarrative" class="narrative"></div>
+              <div class="table-wrap">
+                <table id="retirementComparisonTable"></table>
+              </div>
+              <p id="retirementTableNote" class="table-note"></p>
+              <div class="metric-grid" id="retirementMetricGrid"></div>
+            </section>
+            <section class="sources">
+              <h2>Model notes</h2>
+              <p>
+                This is an educational planning model, not tax, legal, accounting, or investment advice. It uses simplified
+                2026 federal assumptions and lets you adjust key facts that should be confirmed by a qualified advisor.
+              </p>
+              <ul>
+                <li><a href="https://www.irs.gov/businesses/small-businesses-self-employed/self-employment-tax-social-security-and-medicare-taxes">IRS self-employment tax guidance</a>: 15.3% SE tax, Social Security plus Medicare, with an above-the-line deduction for the employer-equivalent portion.</li>
+                <li><a href="https://www.irs.gov/businesses/small-businesses-self-employed/s-corporation-compensation-and-medical-insurance-issues">IRS S-corp compensation guidance</a>: shareholder-employees must receive reasonable compensation before non-wage distributions.</li>
+                <li>2026 assumptions in this model: $184,500 Social Security wage base, $16,100 single standard deduction, and $72,000 retirement annual additions cap.</li>
+              </ul>
+            </section>
+            <p class="page-disclosure">
+              This tool provides estimates for hypothetical purposes only. Calculations rely on user-entered assumptions (tax brackets, deductions, filing status, investment returns, etc.) and simplified formulas. They may not reflect the full complexity of the federal and state tax code, including phase-outs, credits, alternative minimum tax rules, state-specific provisions, or recent legislative changes. Before making decisions about how to time or structure a signing bonus, consult a qualified CPA, tax advisor, or financial planner who can review your specific circumstances.
+            </p>
+            <div class="memo-footer">
+              <span>Confidential - Prepared for Client Use</span>
+              <span>Page 3</span>
+            </div>
+          </article>
+          </details>
+        </section>
+      </section>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>
+
