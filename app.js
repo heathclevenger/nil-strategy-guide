@@ -305,24 +305,8 @@ function sCorpSalaryCandidates(net, assumptions) {
   if (net <= 0) return [0];
   if (assumptions.salary > 0) return [Math.min(assumptions.salary, net)];
 
-  const floorPct = assumptions.salaryFloorPct > 0 ? assumptions.salaryFloorPct / 100 : 0.35;
-  const spendingSalaryFloor = Math.max(0, assumptions.annualSpending);
-  const reasonableFloor = Math.min(net, Math.max(30000, spendingSalaryFloor, net * floorPct));
-  const candidates = [
-    reasonableFloor,
-    50000,
-    75000,
-    100000,
-    net * 0.4,
-    net * 0.5,
-    net * 0.6,
-    net * 0.75,
-    net,
-  ]
-    .map((value) => Math.round(Math.min(Math.max(value, reasonableFloor), net) / 1000) * 1000)
-    .filter((value) => value >= 0 && value <= net);
-
-  return [...new Set(candidates)].sort((a, b) => a - b);
+  const salaryFromSpending = Math.min(net, Math.max(0, assumptions.annualSpending));
+  return [Math.round(salaryFromSpending / 1000) * 1000];
 }
 
 function calculateScenario(type, gross, assumptions, yearIndex = 0) {
@@ -868,7 +852,7 @@ function renderNarrative(model) {
       <li><strong>Why not always S-corp:</strong> low NIL income, high spending needs, high compliance cost, or a higher reasonable salary can erase the benefit.</li>
       <li><strong>LLC treatment:</strong> a single-member LLC generally keeps Schedule C / self-employment tax treatment unless it makes an S-corp election. The LLC can still be useful for liability separation, contracts, banking, and recordkeeping.</li>
       <li><strong>S-corp mechanics:</strong> the player-owner takes a defensible W-2 salary, and remaining profit may be distributed as K-1 pass-through income not subject to self-employment tax.</li>
-      <li><strong>Reasonable salary risk:</strong> the app auto-selects S-corp salary unless an override is entered, using a conservative compensation floor and the player's annual spending need because NIL income is driven heavily by the athlete's personal services.</li>
+      <li><strong>Reasonable salary risk:</strong> the app links S-corp W-2 salary to the annual personal spending input unless an override is entered. That salary should still be reviewed for reasonable-compensation support.</li>
       <li><strong>Retirement layer:</strong> the modeled ${retirementName} adds ${money(sCorpRetirement.retirement)} of tax-deferred savings and ${money(Math.max(0, retirementExtra))} of additional tax reduction versus S-corp alone.${retirementLimited ? " Contributions were reduced where spending needs made the maximum contribution unrealistic." : ""}</li>
       <li><strong>QBI / Section 199A:</strong> this model defaults to zero because high-income athletics and endorsement work may be treated conservatively as SSTB-like personal services; toggle it only with advisor support.</li>
       <li><strong>State planning:</strong> the model uses the selected ${model.assumptions.selectedState.name} schedule for ordinary NIL income.${model.assumptions.selectedState.note ? ` ${model.assumptions.selectedState.note}` : ""} Residency, duty days, source income, and local taxes can change the result.</li>
@@ -885,7 +869,7 @@ function renderNarrative(model) {
     <ul>
       <li><strong>Auto retirement selection:</strong> the model compares SEP-IRA and Solo 401(k) each year and uses the stronger result for retained wealth.</li>
       <li><strong>Cash-aware funding:</strong> if the planned annual spending from owner salary/cash would create a shortfall, the contribution is reduced before the recommendation is calculated.</li>
-      <li><strong>Compensation link:</strong> S-Corp retirement funding depends heavily on the W-2 salary selected by the optimizer or entered as an override.</li>
+      <li><strong>Compensation link:</strong> S-Corp retirement funding depends heavily on the W-2 salary tied to annual spending or entered as an override.</li>
       <li><strong>Implementation note:</strong> plan documents, employee status, deadlines, and advisor setup should be confirmed before relying on any retirement contribution estimate.</li>
     </ul>
   `;
